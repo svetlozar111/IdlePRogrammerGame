@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 
 enum class UpgradeState {
     LOCKED,
@@ -40,7 +45,10 @@ fun JetpackComposeEarningsFieldComponent(
     income: String,
     totalUpgrade: Int,
     price: String,
-    state: UpgradeState
+    state: UpgradeState,
+    isAutomated: Boolean = false,
+    progress: Float = 0f,
+    onClick: () -> Unit = {}
 ) {
     val accent = Color(0xFF00FFD9)
     val bg = Color(0xFF0E141B)
@@ -51,6 +59,7 @@ fun JetpackComposeEarningsFieldComponent(
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
             .padding(16.dp)
+            .clickable(onClick = onClick)
     ) {
 
         // ───── HEADER ROW ─────
@@ -109,8 +118,19 @@ fun JetpackComposeEarningsFieldComponent(
         }
 
         // ───── OWNED STATE EXTRA UI ─────
-        if (state == UpgradeState.OWNED) {
+        if (state == UpgradeState.OWNED && isAutomated) {
             Spacer(Modifier.height(12.dp))
+
+            val animatedProgress = remember { Animatable(0f) }
+            LaunchedEffect(progress) {
+                animatedProgress.animateTo(
+                    targetValue = progress,
+                    animationSpec = tween(
+                        durationMillis = 200,
+                        easing = androidx.compose.animation.core.EaseOutQuad
+                    )
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -121,7 +141,7 @@ fun JetpackComposeEarningsFieldComponent(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.6f)
+                        .fillMaxWidth(animatedProgress.value)
                         .height(8.dp)
                         .clip(RoundedCornerShape(50))
                         .background(accent)

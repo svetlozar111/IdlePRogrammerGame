@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +37,8 @@ fun HireDevCard(
     title: String,
     subtitle: String,
     price: String,
-    state: HireState
+    state: HireState,
+    onClick: () -> Unit = {}
 ) {
     val accent = Color(0xFF00FFC6)
     val bg = Color(0xFF0E141B)
@@ -56,6 +58,7 @@ fun HireDevCard(
             )
             .background(bg)
             .padding(16.dp)
+            .clickable(onClick = onClick)
     ) {
 
         // ───── HEADER ─────

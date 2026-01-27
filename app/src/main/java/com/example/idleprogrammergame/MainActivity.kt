@@ -34,6 +34,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.idleprogrammergame.game_logic.GameEngine
+import com.example.idleprogrammergame.game_logic.Hire
+import com.example.idleprogrammergame.game_logic.Upgrade
+import com.example.idleprogrammergame.game_logic.Venture
 import com.example.idleprogrammergame.ui.theme.IdleProgrammerGameTheme
 import com.example.idleprogrammergame.ui_components.EarningsUpgradeCard
 import com.example.idleprogrammergame.ui_components.HireDevCard
@@ -49,19 +53,26 @@ enum class GameTab {
 }
 
 class MainActivity : ComponentActivity() {
+    private val gameEngine = GameEngine()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             IdleProgrammerGameTheme {
-                GameScreen()
+                GameScreen(gameEngine)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        gameEngine.stopGameLoop()
     }
 }
 
 @Composable
-fun GameScreen() {
+fun GameScreen(gameEngine: GameEngine) {
     var selectedTab by remember { mutableStateOf(GameTab.VENTURES) }
 
     Scaffold(
@@ -81,13 +92,13 @@ fun GameScreen() {
         ) {
 
             JetpackComposeMoneyComponent(
-                balance = "$499.51K",
-                incomePerSecond = "+$313 / s"
+                balance = gameEngine.formatCurrencyWithSymbol(gameEngine.balance.value),
+                incomePerSecond = "+${gameEngine.formatCurrencyWithSymbol(gameEngine.incomePerSecond.value)} / s"
             )
 
             Spacer(Modifier.height(12.dp))
 
-            StatsRow()
+            StatsRow(gameEngine)
 
             Spacer(Modifier.height(12.dp))
 
@@ -96,9 +107,9 @@ fun GameScreen() {
                 modifier = Modifier.weight(1f)
             ) {
                 when (selectedTab) {
-                    GameTab.VENTURES -> VenturesScreen()
-                    GameTab.TEAM -> TeamScreen()
-                    GameTab.UPGRADES -> UpgradesScreen()
+                    GameTab.VENTURES -> VenturesScreen(gameEngine)
+                    GameTab.TEAM -> TeamScreen(gameEngine)
+                    GameTab.UPGRADES -> UpgradesScreen(gameEngine)
                 }
             }
         }
@@ -145,118 +156,77 @@ fun NavItem(
 }
 
 @Composable
-fun VenturesScreen() {
+fun VenturesScreen(gameEngine: GameEngine) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            JetpackComposeEarningsFieldComponent(
-                title = "Bug Fix",
-                income = "$156 / cycle",
-                totalUpgrade = 27,
-                price = "$174",
-                state = UpgradeState.OWNED
-            )
-        }
-
-        item {
-            JetpackComposeEarningsFieldComponent(
-                title = "Freelance Gig",
-                income = "$5 / cycle",
-                totalUpgrade = 1,
-                price = "$68",
-                state = UpgradeState.AVAILABLE
-            )
-        }
-
-        item {
-            JetpackComposeEarningsFieldComponent(
-                title = "Open Source",
-                income = "Community contributions",
-                totalUpgrade = 0,
-                price = "$720",
-                state = UpgradeState.LOCKED
-            )
+        gameEngine.getAllVentures().forEach { venture ->
+            item {
+                JetpackComposeEarningsFieldComponent(
+                    title = venture.title,
+                    income = "${gameEngine.formatCurrencyWithSymbol(gameEngine.calculateVentureIncome(venture))} / cycle",
+                    totalUpgrade = venture.count,
+                    price = gameEngine.formatCurrencyWithSymbol(gameEngine.calculateVenturePrice(venture)),
+                    state = getVentureState(venture),
+                    isAutomated = venture.isAutomated,
+                    progress = gameEngine.getProductionProgress(venture.id),
+                    onClick = {
+                        gameEngine.purchaseVenture(venture.id)
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun TeamScreen() {
+fun TeamScreen(gameEngine: GameEngine) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            HireDevCard(
-                title = "Junior Dev",
-                subtitle = "Automating Bug Fix",
-                price = "$1.00K",
-                state = HireState.HIRED
-            )
-        }
-
-        item {
-            HireDevCard(
-                title = "Mid-level Dev",
-                subtitle = "Automates Freelance Gig",
-                price = "$1.00K",
-                state = HireState.AVAILABLE
-            )
-        }
-
-        item {
-            HireDevCard(
-                title = "Senior Dev",
-                subtitle = "Automates Open Source",
-                price = "$10.00K",
-                state = HireState.LOCKED
-            )
+        gameEngine.getAllHires().forEach { hire ->
+            item {
+                HireDevCard(
+                    title = hire.title,
+                    subtitle = "Automating ${getVentureTitle(gameEngine, hire.ventureId)}",
+                    price = gameEngine.formatCurrencyWithSymbol(hire.price),
+                    state = getHireState(hire, gameEngine),
+                    onClick = {
+                        gameEngine.purchaseHire(hire.id)
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun UpgradesScreen() {
+fun UpgradesScreen(gameEngine: GameEngine) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            EarningsUpgradeCard(
-                title = "Better Tools",
-                description = "Doubles Bug Fix income",
-                multiplier = "x2",
-                price = "$174",
-                state = UpgradeState.AVAILABLE
-            )
-        }
-
-        item {
-            EarningsUpgradeCard(
-                title = "Open Source Fame",
-                description = "Triples Open Source income",
-                multiplier = "x3",
-                price = "$720",
-                state = UpgradeState.LOCKED
-            )
-        }
-
-        item {
-            EarningsUpgradeCard(
-                title = "Enterprise Clients",
-                description = "Quintuples Freelance income",
-                multiplier = "x5",
-                price = "$312",
-                state = UpgradeState.OWNED
-            )
+        gameEngine.getAllUpgrades().forEach { upgrade ->
+            item {
+                EarningsUpgradeCard(
+                    title = upgrade.title,
+                    description = upgrade.description,
+                    multiplier = "x${upgrade.multiplier.toInt()}",
+                    price = gameEngine.formatCurrencyWithSymbol(upgrade.price),
+                    state = getUpgradeState(upgrade, gameEngine),
+                    onClick = {
+                        gameEngine.purchaseUpgrade(upgrade.id)
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun StatsRow() {
+fun StatsRow(gameEngine: GameEngine) {
     val bg = Color(0xFF0E141B)
     val accent = Color(0xFF00FFC6)
     val muted = Color.Gray.copy(alpha = 0.7f)
@@ -273,7 +243,7 @@ fun StatsRow() {
     ) {
 
         StatItem(
-            value = "500.8K",
+            value = gameEngine.formatCurrency(gameEngine.getTotalEarnings()),
             label = "TOTAL",
             color = accent
         )
@@ -281,7 +251,7 @@ fun StatsRow() {
         VerticalDivider()
 
         StatItem(
-            value = "28",
+            value = gameEngine.getTotalVentures().toString(),
             label = "VENTURES",
             color = accent
         )
@@ -289,7 +259,7 @@ fun StatsRow() {
         VerticalDivider()
 
         StatItem(
-            value = "1",
+            value = gameEngine.getTotalHires().toString(),
             label = "DEVS",
             color = accent
         )
@@ -331,10 +301,69 @@ fun VerticalDivider() {
     )
 }
 
+// Helper functions to determine states
+@Composable
+fun getVentureState(venture: Venture): UpgradeState {
+    return when {
+        venture.count > 0 -> UpgradeState.OWNED
+        else -> UpgradeState.AVAILABLE
+    }
+}
+
+@Composable
+fun isVentureAutomated(venture: Venture, gameEngine: GameEngine): Boolean {
+    return venture.isAutomated
+}
+
+@Composable
+fun getHireState(hire: Hire, gameEngine: GameEngine): HireState {
+    return when {
+        hire.isHired -> HireState.HIRED
+        canAffordHire(hire, gameEngine) && hasRequiredVentureForHire(hire, gameEngine) -> HireState.AVAILABLE
+        else -> HireState.LOCKED
+    }
+}
+
+@Composable
+fun hasRequiredVentureForHire(hire: Hire, gameEngine: GameEngine): Boolean {
+    val venture = gameEngine.getVenture(hire.ventureId)
+    return venture != null && venture.count > 0
+}
+
+@Composable
+fun getUpgradeState(upgrade: Upgrade, gameEngine: GameEngine): UpgradeState {
+    return when {
+        upgrade.isPurchased -> UpgradeState.OWNED
+        canAffordUpgrade(upgrade, gameEngine) && hasRequiredVenture(upgrade, gameEngine) -> UpgradeState.AVAILABLE
+        else -> UpgradeState.LOCKED
+    }
+}
+
+@Composable
+fun canAffordHire(hire: Hire, gameEngine: GameEngine): Boolean {
+    return gameEngine.balance.value >= hire.price
+}
+
+@Composable
+fun canAffordUpgrade(upgrade: Upgrade, gameEngine: GameEngine): Boolean {
+    return gameEngine.balance.value >= upgrade.price
+}
+
+@Composable
+fun hasRequiredVenture(upgrade: Upgrade, gameEngine: GameEngine): Boolean {
+    val venture = gameEngine.getVenture(upgrade.ventureId)
+    return venture != null && venture.count > 0
+}
+
+@Composable
+fun getVentureTitle(gameEngine: GameEngine, ventureId: String): String {
+    return gameEngine.getVenture(ventureId)?.title ?: "Unknown"
+}
+
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
     IdleProgrammerGameTheme {
-        GameScreen()
+        GameScreen(GameEngine())
     }
 }

@@ -47,8 +47,7 @@ fun JetpackComposeMoneyComponent(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF0E141B))
-                .padding(16.dp),
+                .background(Color(0xFF0E141B)),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center// 👈 center children
         ) {
