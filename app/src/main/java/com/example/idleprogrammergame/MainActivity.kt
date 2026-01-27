@@ -171,8 +171,11 @@ fun VenturesScreen(gameEngine: GameEngine) {
                     state = getVentureState(venture),
                     isAutomated = venture.isAutomated,
                     progress = gameEngine.getProductionProgress(venture.id),
-                    onClick = {
+                    onButtonClick = {
                         gameEngine.purchaseVenture(venture.id)
+                    },
+                    onManualClick = {
+                        gameEngine.startManualProduction(venture.id)
                     }
                 )
             }

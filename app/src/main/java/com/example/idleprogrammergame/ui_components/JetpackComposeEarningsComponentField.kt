@@ -48,7 +48,8 @@ fun JetpackComposeEarningsFieldComponent(
     state: UpgradeState,
     isAutomated: Boolean = false,
     progress: Float = 0f,
-    onClick: () -> Unit = {}
+    onButtonClick: () -> Unit = {},
+    onManualClick: () -> Unit = {}
 ) {
     val accent = Color(0xFF00FFD9)
     val bg = Color(0xFF0E141B)
@@ -59,7 +60,7 @@ fun JetpackComposeEarningsFieldComponent(
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
             .padding(16.dp)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onManualClick)
     ) {
 
         // ───── HEADER ROW ─────
@@ -118,7 +119,7 @@ fun JetpackComposeEarningsFieldComponent(
         }
 
         // ───── OWNED STATE EXTRA UI ─────
-        if (state == UpgradeState.OWNED && isAutomated) {
+        if (state == UpgradeState.OWNED) {
             Spacer(Modifier.height(12.dp))
 
             val animatedProgress = remember { Animatable(0f) }
@@ -150,11 +151,19 @@ fun JetpackComposeEarningsFieldComponent(
 
             Spacer(Modifier.height(8.dp))
 
-            Text(
-                text = "⚡ Automated",
-                color = accent,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+            if (isAutomated) {
+                Text(
+                    text = "⚡ Automated",
+                    color = accent,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            } else {
+                Text(
+                    text = "⏱️ Manual",
+                    color = Color.Yellow,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -170,7 +179,11 @@ fun JetpackComposeEarningsFieldComponent(
                         UpgradeState.LOCKED -> Color(0xFF1A2028)
                         else -> accent
                     }
-                ),
+                )
+                .clickable(onClick = { 
+                    // Stop propagation to prevent both button and column click from firing
+                    onButtonClick() 
+                }),
             contentAlignment = Alignment.Center
         ) {
             Text(

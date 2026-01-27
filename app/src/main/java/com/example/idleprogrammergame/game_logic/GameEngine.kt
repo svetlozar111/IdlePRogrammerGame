@@ -248,6 +248,21 @@ class GameEngine {
         startGameLoop()
     }
 
+    // Manual production for non-automated ventures
+    fun startManualProduction(ventureId: String): Boolean {
+        val venture = getVenture(ventureId)
+        if (venture != null && venture.count > 0 && !venture.isAutomated) {
+            val currentTime = timeSinceLastProduction[ventureId] ?: 0.0
+            
+            // If cycle is complete, start a new cycle
+            if (currentTime >= venture.productionTime) {
+                timeSinceLastProduction[ventureId] = 0.0
+                return true
+            }
+        }
+        return false
+    }
+
     private fun startGameLoop() {
         isRunning = true
         coroutineScope.launch {
@@ -256,19 +271,37 @@ class GameEngine {
                 delay(tickInterval)
                 val deltaTime = tickInterval / 1000.0
                 
-                // Update production timers for automated ventures
+                // Update production timers for all ventures with count > 0
                 ventures.forEach { venture ->
-                    if (venture.isAutomated && venture.count > 0) {
-                        val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
-                        val newTime = currentTime + deltaTime
-                        timeSinceLastProduction[venture.id] = newTime
-                        
-                        // Check if production cycle is complete
-                        if (newTime >= venture.productionTime) {
-                            val income = calculateVentureIncome(venture)
-                            balance.value += income
-                            timeSinceLastProduction[venture.id] = newTime % venture.productionTime
-                            updateIncomePerSecond()
+                    if (venture.count > 0) {
+                        if (venture.isAutomated) {
+                            // Automated venture: update timer continuously
+                            val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
+                            val newTime = currentTime + deltaTime
+                            timeSinceLastProduction[venture.id] = newTime
+                            
+                            // Check if production cycle is complete
+                            if (newTime >= venture.productionTime) {
+                                val income = calculateVentureIncome(venture)
+                                balance.value += income
+                                timeSinceLastProduction[venture.id] = newTime % venture.productionTime
+                                updateIncomePerSecond()
+                            }
+                        } else {
+                            // Manual venture: only update timer if it hasn't completed the cycle yet
+                            val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
+                            if (currentTime < venture.productionTime) {
+                                val newTime = currentTime + deltaTime
+                                timeSinceLastProduction[venture.id] = newTime
+                                
+                                // Check if production cycle is complete
+                                if (newTime >= venture.productionTime) {
+                                    val income = calculateVentureIncome(venture)
+                                    balance.value += income
+                                    timeSinceLastProduction[venture.id] = venture.productionTime.toDouble() // Set to complete state
+                                    updateIncomePerSecond()
+                                }
+                            }
                         }
                     }
                 }
