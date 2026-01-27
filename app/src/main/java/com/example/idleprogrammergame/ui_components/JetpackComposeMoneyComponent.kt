@@ -34,12 +34,14 @@ fun JetpackComposeMoneyComponent(
         modifier = Modifier
             .fillMaxWidth()
             .height(140.dp)
+            .padding(16.dp)
             .shadow(
                 elevation = 25.dp,
                 shape = RoundedCornerShape(20.dp),
                 ambientColor = Color(0xFF00FFC6).copy(alpha = 0.80f),
                 spotColor = Color(0xFF00FFEA).copy(alpha = 0.70f)
             )
+
     ) {
         Column(
             modifier = Modifier
