@@ -40,11 +40,13 @@ import com.example.idleprogrammergame.game_logic.Upgrade
 import com.example.idleprogrammergame.game_logic.Venture
 import com.example.idleprogrammergame.ui.theme.IdleProgrammerGameTheme
 import com.example.idleprogrammergame.ui_components.EarningsUpgradeCard
+import com.example.idleprogrammergame.ui_components.FloatingAdButton
 import com.example.idleprogrammergame.ui_components.HireDevCard
 import com.example.idleprogrammergame.ui_components.HireState
 import com.example.idleprogrammergame.ui_components.JetpackComposeEarningsFieldComponent
 import com.example.idleprogrammergame.ui_components.JetpackComposeMoneyComponent
 import com.example.idleprogrammergame.ui_components.UpgradeState
+import com.example.idleprogrammergame.game_logic.AdEngine
 
 enum class GameTab {
     VENTURES,
@@ -54,13 +56,17 @@ enum class GameTab {
 
 class MainActivity : ComponentActivity() {
     private val gameEngine = GameEngine()
+    private lateinit var adEngine: AdEngine
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        adEngine = AdEngine(gameEngine)
+        adEngine.initialize(this)
+        adEngine.setActivity(this)
         enableEdgeToEdge()
         setContent {
             IdleProgrammerGameTheme {
-                GameScreen(gameEngine)
+                GameScreen(gameEngine, adEngine)
             }
         }
     }
@@ -72,7 +78,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun GameScreen(gameEngine: GameEngine) {
+fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
     var selectedTab by remember { mutableStateOf(GameTab.VENTURES) }
 
     Scaffold(
@@ -85,33 +91,43 @@ fun GameScreen(gameEngine: GameEngine) {
         }
     ) { padding ->
 
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-
-            JetpackComposeMoneyComponent(
-                balance = gameEngine.formatCurrencyWithSymbol(gameEngine.balance.value),
-                incomePerSecond = "+${gameEngine.formatCurrencyWithSymbol(gameEngine.incomePerSecond.value)} / s"
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            StatsRow(gameEngine)
-
-            Spacer(Modifier.height(12.dp))
-
-            // 👇 THIS is the fix
-            Box(
-                modifier = Modifier.weight(1f)
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
             ) {
-                when (selectedTab) {
-                    GameTab.VENTURES -> VenturesScreen(gameEngine)
-                    GameTab.TEAM -> TeamScreen(gameEngine)
-                    GameTab.UPGRADES -> UpgradesScreen(gameEngine)
+
+                JetpackComposeMoneyComponent(
+                    balance = gameEngine.formatCurrencyWithSymbol(gameEngine.balance.value),
+                    incomePerSecond = "+${gameEngine.formatCurrencyWithSymbol(gameEngine.incomePerSecond.value)} / s"
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                StatsRow(gameEngine)
+
+                Spacer(Modifier.height(12.dp))
+
+                // 👇 THIS is the fix
+                Box(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    when (selectedTab) {
+                        GameTab.VENTURES -> VenturesScreen(gameEngine)
+                        GameTab.TEAM -> TeamScreen(gameEngine)
+                        GameTab.UPGRADES -> UpgradesScreen(gameEngine)
+                    }
                 }
             }
+
+            // Floating Ad Button in top-right corner
+            FloatingAdButton(
+                adEngine = adEngine,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = padding.calculateTopPadding() + 8.dp, end = 16.dp)
+            )
         }
     }
 }
@@ -361,12 +377,4 @@ fun hasRequiredVenture(upgrade: Upgrade, gameEngine: GameEngine): Boolean {
 @Composable
 fun getVentureTitle(gameEngine: GameEngine, ventureId: String): String {
     return gameEngine.getVenture(ventureId)?.title ?: "Unknown"
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    IdleProgrammerGameTheme {
-        GameScreen(GameEngine())
-    }
 }

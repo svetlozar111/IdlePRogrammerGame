@@ -8,9 +8,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.pow
+import com.example.idleprogrammergame.game_logic.AdRewardType
 
 // Game constants
-const val INITIAL_BALANCE = 50000.0 // $50.00K
+const val INITIAL_BALANCE = 0.0 // Start with $0, player must earn/purchase
 const val UPDATE_INTERVAL_MS = 1000L // Update every second
 
 // Venture types
@@ -47,6 +48,8 @@ class GameEngine {
     // Game state
     var balance = mutableStateOf(INITIAL_BALANCE)
     var incomePerSecond = mutableStateOf(0.0)
+    var incomeMultiplier = mutableStateOf(1.0)
+    var bonusTimeRemainingSeconds = mutableStateOf(0.0) // Use Double for precision
     private val timeSinceLastProduction =
         androidx.compose.runtime.mutableStateMapOf<String, Double>()
 
@@ -56,7 +59,7 @@ class GameEngine {
             id = "bug_fix",
             title = "Bug Fix",
             baseIncome = 10.0,
-            count = 0,
+            count = 1, // Starting with 1 bug fix venture
             basePrice = 100.0,
             isAutomated = false,
             productionTime = 5 // 5 seconds per cycle
@@ -271,6 +274,9 @@ class GameEngine {
                 delay(tickInterval)
                 val deltaTime = tickInterval / 1000.0
                 
+                // Update bonus time if active
+                updateBonusTime(deltaTime)
+                
                 // Update production timers for all ventures with count > 0
                 ventures.forEach { venture ->
                     if (venture.count > 0) {
@@ -336,7 +342,7 @@ class GameEngine {
         val baseIncome = venture.baseIncome
         val count = venture.count
         val upgradesMultiplier = getVentureUpgradesMultiplier(venture.id)
-        return baseIncome * count * upgradesMultiplier
+        return baseIncome * count * upgradesMultiplier * incomeMultiplier.value
     }
 
     private fun getVentureUpgradesMultiplier(ventureId: String): Double {
@@ -451,5 +457,34 @@ class GameEngine {
 
     fun getTotalEarnings(): Double {
         return INITIAL_BALANCE + (balance.value - INITIAL_BALANCE) // Calculate total earnings from initial state
+    }
+
+    // Bonus/Ad reward methods
+    fun activateBonus(rewardType: AdRewardType) {
+        incomeMultiplier.value = rewardType.multiplier
+        bonusTimeRemainingSeconds.value = rewardType.durationMinutes * 60.0 // Use Double
+        updateIncomePerSecond()
+    }
+
+    fun updateBonusTime(deltaTime: Double) {
+        if (bonusTimeRemainingSeconds.value > 0) {
+            // Use Double arithmetic for precision
+            val newTime = (bonusTimeRemainingSeconds.value - deltaTime).coerceAtLeast(0.0)
+            bonusTimeRemainingSeconds.value = newTime
+            if (bonusTimeRemainingSeconds.value <= 0) {
+                bonusTimeRemainingSeconds.value = 0.0
+                incomeMultiplier.value = 1.0
+                updateIncomePerSecond()
+            }
+        }
+    }
+
+    fun hasActiveBonus(): Boolean = bonusTimeRemainingSeconds.value > 0
+
+    fun getBonusTimeFormatted(): String {
+        val totalSeconds = bonusTimeRemainingSeconds.value.toLong()
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format("%d:%02d", minutes, seconds)
     }
 }
