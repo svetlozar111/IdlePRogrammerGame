@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -143,7 +144,8 @@ fun BottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF0E141B))
-            .padding(vertical = 12.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp)
+            .navigationBarsPadding(),
         horizontalArrangement = Arrangement.SpaceAround
     ) {
         NavItem("Ventures", selectedTab == GameTab.VENTURES) {
@@ -338,7 +340,7 @@ fun isVentureAutomated(venture: Venture, gameEngine: GameEngine): Boolean {
 fun getHireState(hire: Hire, gameEngine: GameEngine): HireState {
     return when {
         hire.isHired -> HireState.HIRED
-        canAffordHire(hire, gameEngine) && hasRequiredVentureForHire(hire, gameEngine) -> HireState.AVAILABLE
+        hasRequiredVentureForHire(hire, gameEngine) -> HireState.AVAILABLE
         else -> HireState.LOCKED
     }
 }
@@ -353,7 +355,7 @@ fun hasRequiredVentureForHire(hire: Hire, gameEngine: GameEngine): Boolean {
 fun getUpgradeState(upgrade: Upgrade, gameEngine: GameEngine): UpgradeState {
     return when {
         upgrade.isPurchased -> UpgradeState.OWNED
-        canAffordUpgrade(upgrade, gameEngine) && hasRequiredVenture(upgrade, gameEngine) -> UpgradeState.AVAILABLE
+        hasRequiredVenture(upgrade, gameEngine) -> UpgradeState.AVAILABLE
         else -> UpgradeState.LOCKED
     }
 }

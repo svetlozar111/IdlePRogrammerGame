@@ -63,7 +63,7 @@ fun HireDevCard(
 
         // ───── HEADER ─────
         Row(
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             modifier = Modifier.fillMaxWidth()
         ) {
 
@@ -88,7 +88,8 @@ fun HireDevCard(
 
             Spacer(Modifier.width(12.dp))
 
-            Column {
+            // Title and subtitle - allow wrapping
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     color = if (state == HireState.LOCKED) Color.Gray else Color.White
@@ -106,8 +107,6 @@ fun HireDevCard(
                         accent
                 )
             }
-
-            Spacer(Modifier.weight(1f))
 
             // Status badge
             when (state) {
