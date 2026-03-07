@@ -8,11 +8,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.pow
+import kotlin.math.sqrt
 import com.example.idleprogrammergame.game_logic.AdRewardType
 
 // Game constants
-const val INITIAL_BALANCE = 0.0 // Start with $0, player must earn/purchase
-const val UPDATE_INTERVAL_MS = 1000L // Update every second
+const val INITIAL_BALANCE = 0.0
+const val UPDATE_INTERVAL_MS = 1000L
+const val MIN_XP_TO_ASCEND = 10L // Player needs at least 10 XP to prestige
 
 // Venture types
 data class Venture(
@@ -44,197 +46,58 @@ data class Upgrade(
     val isPurchased: Boolean
 )
 
+// Skill Tree / Prestige Upgrade
+data class SkillUpgrade(
+    val id: String,
+    val title: String,
+    val description: String,
+    val cost: Long,
+    val level: Int = 0,
+    val maxLevel: Int = 10,
+    val effectMultiplier: Double = 0.1
+)
+
 class GameEngine {
     // Game state
     var balance = mutableStateOf(INITIAL_BALANCE)
     var incomePerSecond = mutableStateOf(0.0)
     var incomeMultiplier = mutableStateOf(1.0)
-    var bonusTimeRemainingSeconds = mutableStateOf(0.0) // Use Double for precision
+    var bonusTimeRemainingSeconds = mutableStateOf(0.0)
+    
+    // Prestige State
+    var experiencePoints = mutableStateOf(0L)
+    var lifetimeEarnings = mutableStateOf(0.0)
+    
     private val timeSinceLastProduction =
         androidx.compose.runtime.mutableStateMapOf<String, Double>()
 
-    // Game data (using mutableState for UI updates)
-    private val ventures = mutableStateListOf(
-        Venture(
-            id = "bug_fix",
-            title = "Bug Fix",
-            baseIncome = 10.0,
-            count = 1, // Starting with 1 bug fix venture
-            basePrice = 100.0,
-            isAutomated = false,
-            productionTime = 5 // 5 seconds per cycle
+    // Game data
+    private val ventures = mutableStateListOf<Venture>()
+    private val hires = mutableStateListOf<Hire>()
+    private val upgrades = mutableStateListOf<Upgrade>()
+    
+    // Skill Tree data
+    private val skillUpgrades = mutableStateListOf(
+        SkillUpgrade(
+            id = "legacy_knowledge",
+            title = "Legacy Knowledge",
+            description = "+10% Income per level",
+            cost = 10,
+            effectMultiplier = 0.1
         ),
-        Venture(
-            id = "freelance_gig",
-            title = "Freelance Gig",
-            baseIncome = 50.0,
-            count = 0,
-            basePrice = 500.0,
-            isAutomated = false,
-            productionTime = 60 // 1 minute per cycle
+        SkillUpgrade(
+            id = "efficient_workflow",
+            title = "Efficient Workflow",
+            description = "-5% Venture costs per level",
+            cost = 25,
+            effectMultiplier = 0.05
         ),
-        Venture(
-            id = "open_source",
-            title = "Open Source",
-            baseIncome = 200.0,
-            count = 0,
-            basePrice = 2000.0,
-            isAutomated = false,
-            productionTime = 300 // 5 minutes per cycle
-        ),
-        Venture(
-            id = "mobile_app",
-            title = "Mobile App",
-            baseIncome = 500.0,
-            count = 0,
-            basePrice = 5000.0,
-            isAutomated = false,
-            productionTime = 1800 // 30 minutes per cycle
-        ),
-        Venture(
-            id = "web_development",
-            title = "Web Development",
-            baseIncome = 1000.0,
-            count = 0,
-            basePrice = 10000.0,
-            isAutomated = false,
-            productionTime = 3600 // 1 hour per cycle
-        ),
-        Venture(
-            id = "ai_startup",
-            title = "AI Startup",
-            baseIncome = 5000.0,
-            count = 0,
-            basePrice = 50000.0,
-            isAutomated = false,
-            productionTime = 18000 // 5 hours per cycle
-        ),
-        Venture(
-            id = "blockchain",
-            title = "Blockchain Project",
-            baseIncome = 10000.0,
-            count = 0,
-            basePrice = 100000.0,
-            isAutomated = false,
-            productionTime = 86400 // 24 hours per cycle
-        )
-    )
-
-    private val hires = mutableStateListOf(
-        Hire(
-            id = "junior_dev",
-            title = "Junior Dev",
-            ventureId = "bug_fix",
-            price = 1000.0,
-            isHired = false
-        ),
-        Hire(
-            id = "mid_level_dev",
-            title = "Mid-level Dev",
-            ventureId = "freelance_gig",
-            price = 5000.0,
-            isHired = false
-        ),
-        Hire(
-            id = "senior_dev",
-            title = "Senior Dev",
-            ventureId = "open_source",
-            price = 10000.0,
-            isHired = false
-        ),
-        Hire(
-            id = "mobile_dev",
-            title = "Mobile Developer",
-            ventureId = "mobile_app",
-            price = 25000.0,
-            isHired = false
-        ),
-        Hire(
-            id = "web_dev",
-            title = "Web Developer",
-            ventureId = "web_development",
-            price = 50000.0,
-            isHired = false
-        ),
-        Hire(
-            id = "ai_engineer",
-            title = "AI Engineer",
-            ventureId = "ai_startup",
-            price = 100000.0,
-            isHired = false
-        ),
-        Hire(
-            id = "blockchain_expert",
-            title = "Blockchain Expert",
-            ventureId = "blockchain",
-            price = 200000.0,
-            isHired = false
-        )
-    )
-
-    private val upgrades = mutableStateListOf(
-        Upgrade(
-            id = "better_tools",
-            title = "Better Tools",
-            description = "Doubles Bug Fix income",
-            ventureId = "bug_fix",
-            multiplier = 2.0,
-            price = 1000.0,
-            isPurchased = false
-        ),
-        Upgrade(
-            id = "open_source_fame",
-            title = "Open Source Fame",
-            description = "Triples Open Source income",
-            ventureId = "open_source",
-            multiplier = 3.0,
-            price = 5000.0,
-            isPurchased = false
-        ),
-        Upgrade(
-            id = "enterprise_clients",
-            title = "Enterprise Clients",
-            description = "Quintuples Freelance income",
-            ventureId = "freelance_gig",
-            multiplier = 5.0,
-            price = 3000.0,
-            isPurchased = false
-        ),
-        Upgrade(
-            id = "cross_platform",
-            title = "Cross-Platform",
-            description = "Doubles Mobile App income",
-            ventureId = "mobile_app",
-            multiplier = 2.0,
-            price = 10000.0,
-            isPurchased = false
-        ),
-        Upgrade(
-            id = "cloud_hosting",
-            title = "Cloud Hosting",
-            description = "Triples Web Development income",
-            ventureId = "web_development",
-            multiplier = 3.0,
-            price = 20000.0,
-            isPurchased = false
-        ),
-        Upgrade(
-            id = "ai_algorithm",
-            title = "Advanced AI Algorithm",
-            description = "Quadruples AI Startup income",
-            ventureId = "ai_startup",
-            multiplier = 4.0,
-            price = 50000.0,
-            isPurchased = false
-        ),
-        Upgrade(
-            id = "smart_contracts",
-            title = "Smart Contracts",
-            description = "Quintuples Blockchain Project income",
-            ventureId = "blockchain",
-            multiplier = 5.0,
-            price = 100000.0,
-            isPurchased = false
+        SkillUpgrade(
+            id = "deep_focus",
+            title = "Deep Focus",
+            description = "Manual production is 20% faster per level",
+            cost = 50,
+            effectMultiplier = 0.2
         )
     )
 
@@ -243,15 +106,129 @@ class GameEngine {
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
     init {
-        // Initialize production timers for each venture
-        ventures.forEach {
-            timeSinceLastProduction[it.id] = 0.0
-        }
+        resetGameData()
         updateIncomePerSecond()
         startGameLoop()
     }
 
-    // Manual production for non-automated ventures
+    private fun resetGameData() {
+        balance.value = INITIAL_BALANCE
+        ventures.clear()
+        ventures.addAll(listOf(
+            Venture("bug_fix", "Bug Fix", 10.0, 1, 100.0, false, 5),
+            Venture("freelance_gig", "Freelance Gig", 50.0, 0, 500.0, false, 60),
+            Venture("open_source", "Open Source", 200.0, 0, 2000.0, false, 300),
+            Venture("mobile_app", "Mobile App", 500.0, 0, 5000.0, false, 1800),
+            Venture("web_development", "Web Development", 1000.0, 0, 10000.0, false, 3600),
+            Venture("ai_startup", "AI Startup", 5000.0, 0, 50000.0, false, 18000),
+            Venture("blockchain", "Blockchain Project", 10000.0, 0, 100000.0, false, 86400)
+        ))
+
+        hires.clear()
+        hires.addAll(listOf(
+            Hire("junior_dev", "Junior Dev", "bug_fix", 1000.0, false),
+            Hire("mid_level_dev", "Mid-level Dev", "freelance_gig", 5000.0, false),
+            Hire("senior_dev", "Senior Dev", "open_source", 10000.0, false),
+            Hire("mobile_dev", "Mobile Developer", "mobile_app", 25000.0, false),
+            Hire("web_dev", "Web Developer", "web_development", 50000.0, false),
+            Hire("ai_engineer", "AI Engineer", "ai_startup", 100000.0, false),
+            Hire("blockchain_expert", "Blockchain Expert", "blockchain", 200000.0, false)
+        ))
+
+        upgrades.clear()
+        upgrades.addAll(listOf(
+            Upgrade("better_tools", "Better Tools", "Doubles Bug Fix income", "bug_fix", 2.0, 1000.0, false),
+            Upgrade("open_source_fame", "Open Source Fame", "Triples Open Source income", "open_source", 3.0, 5000.0, false),
+            Upgrade("enterprise_clients", "Enterprise Clients", "Quintuples Freelance income", "freelance_gig", 5.0, 3000.0, false),
+            Upgrade("cross_platform", "Cross-Platform", "Doubles Mobile App income", "mobile_app", 2.0, 10000.0, false),
+            Upgrade("cloud_hosting", "Cloud Hosting", "Triples Web Development income", "web_development", 3.0, 20000.0, false),
+            Upgrade("ai_algorithm", "Advanced AI Algorithm", "Quadruples AI Startup income", "ai_startup", 4.0, 50000.0, false),
+            Upgrade("smart_contracts", "Smart Contracts", "Quintuples Blockchain Project income", "blockchain", 5.0, 100000.0, false)
+        ))
+
+        ventures.forEach { timeSinceLastProduction[it.id] = 0.0 }
+    }
+
+    fun calculateExperienceGain(): Long {
+        val gain = floor(sqrt(lifetimeEarnings.value) / 10).toLong()
+        return gain.coerceAtLeast(0)
+    }
+
+    fun canAscend(): Boolean = calculateExperienceGain() >= MIN_XP_TO_ASCEND
+
+    fun ascend() {
+        if (!canAscend()) return
+        
+        val gain = calculateExperienceGain()
+        experiencePoints.value += gain
+        
+        // Reset everything except XP and Skill Tree
+        resetGameData()
+        updateIncomePerSecond()
+    }
+
+    fun purchaseSkill(skillId: String): Boolean {
+        val index = skillUpgrades.indexOfFirst { it.id == skillId }
+        if (index == -1) return false
+        
+        val skill = skillUpgrades[index]
+        if (experiencePoints.value >= skill.cost && skill.level < skill.maxLevel) {
+            experiencePoints.value -= skill.cost
+            skillUpgrades[index] = skill.copy(
+                level = skill.level + 1,
+                cost = (skill.cost * 1.5).toLong()
+            )
+            updateIncomePerSecond()
+            return true
+        }
+        return false
+    }
+
+    private fun startGameLoop() {
+        isRunning = true
+        coroutineScope.launch {
+            val tickInterval = 100L
+            while (isRunning) {
+                delay(tickInterval)
+                val deltaTime = tickInterval / 1000.0
+                updateBonusTime(deltaTime)
+                
+                ventures.forEach { venture ->
+                    if (venture.count > 0) {
+                        val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
+                        val speedBoost = if (!venture.isAutomated) {
+                            1.0 + (getSkillLevel("deep_focus") * getSkillEffect("deep_focus"))
+                        } else 1.0
+                        
+                        val adjustedDelta = deltaTime * speedBoost
+                        
+                        if (venture.isAutomated) {
+                            val newTime = currentTime + adjustedDelta
+                            timeSinceLastProduction[venture.id] = newTime
+                            if (newTime >= venture.productionTime) {
+                                val income = calculateVentureIncome(venture)
+                                addBalance(income)
+                                timeSinceLastProduction[venture.id] = newTime % venture.productionTime
+                            }
+                        } else if (currentTime < venture.productionTime) {
+                            val newTime = currentTime + adjustedDelta
+                            timeSinceLastProduction[venture.id] = newTime
+                            if (newTime >= venture.productionTime) {
+                                val income = calculateVentureIncome(venture)
+                                addBalance(income)
+                                timeSinceLastProduction[venture.id] = venture.productionTime.toDouble()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun stopGameLoop() {
+        isRunning = false
+    }
+
     fun startManualProduction(ventureId: String): Boolean {
         val venture = getVenture(ventureId)
         if (venture != null && venture.count > 0 && !venture.isAutomated) {
@@ -266,60 +243,11 @@ class GameEngine {
         return false
     }
 
-    private fun startGameLoop() {
-        isRunning = true
-        coroutineScope.launch {
-            val tickInterval = 100L // Update every 0.1 seconds
-            while (isRunning) {
-                delay(tickInterval)
-                val deltaTime = tickInterval / 1000.0
-                
-                // Update bonus time if active
-                updateBonusTime(deltaTime)
-                
-                // Update production timers for all ventures with count > 0
-                ventures.forEach { venture ->
-                    if (venture.count > 0) {
-                        if (venture.isAutomated) {
-                            // Automated venture: update timer continuously
-                            val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
-                            val newTime = currentTime + deltaTime
-                            timeSinceLastProduction[venture.id] = newTime
-                            
-                            // Check if production cycle is complete
-                            if (newTime >= venture.productionTime) {
-                                val income = calculateVentureIncome(venture)
-                                balance.value += income
-                                timeSinceLastProduction[venture.id] = newTime % venture.productionTime
-                                updateIncomePerSecond()
-                            }
-                        } else {
-                            // Manual venture: only update timer if it hasn't completed the cycle yet
-                            val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
-                            if (currentTime < venture.productionTime) {
-                                val newTime = currentTime + deltaTime
-                                timeSinceLastProduction[venture.id] = newTime
-                                
-                                // Check if production cycle is complete
-                                if (newTime >= venture.productionTime) {
-                                    val income = calculateVentureIncome(venture)
-                                    balance.value += income
-                                    timeSinceLastProduction[venture.id] = venture.productionTime.toDouble() // Set to complete state
-                                    updateIncomePerSecond()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    private fun addBalance(amount: Double) {
+        balance.value += amount
+        lifetimeEarnings.value += amount
     }
 
-    fun stopGameLoop() {
-        isRunning = false
-    }
-
-    // Get progress towards next production for a specific venture (0.0 to 1.0)
     fun getProductionProgress(ventureId: String): Float {
         val venture = ventures.find { it.id == ventureId } ?: return 0f
         val time = timeSinceLastProduction[ventureId] ?: 0.0
@@ -342,7 +270,9 @@ class GameEngine {
         val baseIncome = venture.baseIncome
         val count = venture.count
         val upgradesMultiplier = getVentureUpgradesMultiplier(venture.id)
-        return baseIncome * count * upgradesMultiplier * incomeMultiplier.value
+        val xpBonus = 1.0 + (getSkillLevel("legacy_knowledge") * getSkillEffect("legacy_knowledge"))
+        
+        return baseIncome * count * upgradesMultiplier * incomeMultiplier.value * xpBonus
     }
 
     private fun getVentureUpgradesMultiplier(ventureId: String): Double {
@@ -359,23 +289,19 @@ class GameEngine {
         val basePrice = venture.basePrice
         val count = venture.count
         val priceMultiplier = 1.15.pow(count)
-        return basePrice * priceMultiplier
+        val costReduction = 1.0 - (getSkillLevel("efficient_workflow") * getSkillEffect("efficient_workflow"))
+        
+        return basePrice * priceMultiplier * costReduction
     }
 
     fun purchaseVenture(ventureId: String): Boolean {
         val index = ventures.indexOfFirst { it.id == ventureId }
         if (index == -1) return false
-
         val venture = ventures[index]
         val price = calculateVenturePrice(venture)
-
         if (balance.value >= price) {
             balance.value -= price
-
-            ventures[index] = venture.copy(
-                count = venture.count + 1
-            )
-
+            ventures[index] = venture.copy(count = venture.count + 1)
             updateIncomePerSecond()
             return true
         }
@@ -385,18 +311,14 @@ class GameEngine {
     fun purchaseHire(hireId: String): Boolean {
         val hireIndex = hires.indexOfFirst { it.id == hireId }
         if (hireIndex == -1) return false
-
         val hire = hires[hireIndex]
         if (balance.value >= hire.price && !hire.isHired) {
             balance.value -= hire.price
             hires[hireIndex] = hire.copy(isHired = true)
-
             val ventureIndex = ventures.indexOfFirst { it.id == hire.ventureId }
             if (ventureIndex != -1) {
-                val venture = ventures[ventureIndex]
-                ventures[ventureIndex] = venture.copy(isAutomated = true)
+                ventures[ventureIndex] = ventures[ventureIndex].copy(isAutomated = true)
             }
-
             updateIncomePerSecond()
             return true
         }
@@ -406,7 +328,6 @@ class GameEngine {
     fun purchaseUpgrade(upgradeId: String): Boolean {
         val index = upgrades.indexOfFirst { it.id == upgradeId }
         if (index == -1) return false
-
         val upgrade = upgrades[index]
         if (balance.value >= upgrade.price && !upgrade.isPurchased) {
             balance.value -= upgrade.price
@@ -416,24 +337,16 @@ class GameEngine {
         }
         return false
     }
-    // Helper methods to get game data
-    fun getVenture(ventureId: String): Venture? {
-        return ventures.find { it.id == ventureId }
-    }
 
-    fun getHire(hireId: String): Hire? {
-        return hires.find { it.id == hireId }
-    }
-
-    fun getUpgrade(upgradeId: String): Upgrade? {
-        return upgrades.find { it.id == upgradeId }
-    }
-
+    private fun getSkillLevel(skillId: String): Int = skillUpgrades.find { it.id == skillId }?.level ?: 0
+    private fun getSkillEffect(skillId: String): Double = skillUpgrades.find { it.id == skillId }?.effectMultiplier ?: 0.0
+    
+    fun getVenture(ventureId: String): Venture? = ventures.find { it.id == ventureId }
     fun getAllVentures(): List<Venture> = ventures.toList()
     fun getAllHires(): List<Hire> = hires.toList()
     fun getAllUpgrades(): List<Upgrade> = upgrades.toList()
+    fun getAllSkills(): List<SkillUpgrade> = skillUpgrades.toList()
 
-    // Formatters for display
     fun formatCurrency(amount: Double): String {
         return when {
             amount >= 1_000_000_000 -> "${String.format("%.2f", amount / 1_000_000_000)}B"
@@ -443,9 +356,7 @@ class GameEngine {
         }
     }
 
-    fun formatCurrencyWithSymbol(amount: Double): String {
-        return "$${formatCurrency(amount)}"
-    }
+    fun formatCurrencyWithSymbol(amount: Double): String = "$${formatCurrency(amount)}"
 
     fun getTotalVentures(): Int {
         return ventures.sumOf { it.count }
@@ -456,19 +367,17 @@ class GameEngine {
     }
 
     fun getTotalEarnings(): Double {
-        return INITIAL_BALANCE + (balance.value - INITIAL_BALANCE) // Calculate total earnings from initial state
+        return lifetimeEarnings.value
     }
 
-    // Bonus/Ad reward methods
     fun activateBonus(rewardType: AdRewardType) {
         incomeMultiplier.value = rewardType.multiplier
-        bonusTimeRemainingSeconds.value = rewardType.durationMinutes * 60.0 // Use Double
+        bonusTimeRemainingSeconds.value = rewardType.durationMinutes * 60.0
         updateIncomePerSecond()
     }
 
-    fun updateBonusTime(deltaTime: Double) {
+    private fun updateBonusTime(deltaTime: Double) {
         if (bonusTimeRemainingSeconds.value > 0) {
-            // Use Double arithmetic for precision
             val newTime = (bonusTimeRemainingSeconds.value - deltaTime).coerceAtLeast(0.0)
             bonusTimeRemainingSeconds.value = newTime
             if (bonusTimeRemainingSeconds.value <= 0) {

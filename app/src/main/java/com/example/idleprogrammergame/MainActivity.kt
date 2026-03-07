@@ -6,53 +6,28 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.idleprogrammergame.game_logic.GameEngine
-import com.example.idleprogrammergame.game_logic.Hire
-import com.example.idleprogrammergame.game_logic.Upgrade
-import com.example.idleprogrammergame.game_logic.Venture
+import com.example.idleprogrammergame.game_logic.*
 import com.example.idleprogrammergame.ui.theme.IdleProgrammerGameTheme
-import com.example.idleprogrammergame.ui_components.EarningsUpgradeCard
-import com.example.idleprogrammergame.ui_components.FloatingAdButton
-import com.example.idleprogrammergame.ui_components.HireDevCard
-import com.example.idleprogrammergame.ui_components.HireState
-import com.example.idleprogrammergame.ui_components.JetpackComposeEarningsFieldComponent
-import com.example.idleprogrammergame.ui_components.JetpackComposeMoneyComponent
-import com.example.idleprogrammergame.ui_components.UpgradeState
-import com.example.idleprogrammergame.game_logic.AdEngine
+import com.example.idleprogrammergame.ui_components.*
 
 enum class GameTab {
     VENTURES,
     TEAM,
-    UPGRADES
+    UPGRADES,
+    CAREER
 }
 
 class MainActivity : ComponentActivity() {
@@ -110,7 +85,6 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
 
                 Spacer(Modifier.height(12.dp))
 
-                // 👇 THIS is the fix
                 Box(
                     modifier = Modifier.weight(1f)
                 ) {
@@ -118,11 +92,11 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
                         GameTab.VENTURES -> VenturesScreen(gameEngine)
                         GameTab.TEAM -> TeamScreen(gameEngine)
                         GameTab.UPGRADES -> UpgradesScreen(gameEngine)
+                        GameTab.CAREER -> CareerScreen(gameEngine)
                     }
                 }
             }
 
-            // Floating Ad Button in top-right corner
             FloatingAdButton(
                 adEngine = adEngine,
                 modifier = Modifier
@@ -138,8 +112,6 @@ fun BottomNavBar(
     selectedTab: GameTab,
     onTabSelected: (GameTab) -> Unit
 ) {
-    val accent = Color(0xFF00FFC6)
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -148,24 +120,15 @@ fun BottomNavBar(
             .navigationBarsPadding(),
         horizontalArrangement = Arrangement.SpaceAround
     ) {
-        NavItem("Ventures", selectedTab == GameTab.VENTURES) {
-            onTabSelected(GameTab.VENTURES)
-        }
-        NavItem("Team", selectedTab == GameTab.TEAM) {
-            onTabSelected(GameTab.TEAM)
-        }
-        NavItem("Upgrades", selectedTab == GameTab.UPGRADES) {
-            onTabSelected(GameTab.UPGRADES)
-        }
+        NavItem("Ventures", selectedTab == GameTab.VENTURES) { onTabSelected(GameTab.VENTURES) }
+        NavItem("Team", selectedTab == GameTab.TEAM) { onTabSelected(GameTab.TEAM) }
+        NavItem("Upgrades", selectedTab == GameTab.UPGRADES) { onTabSelected(GameTab.UPGRADES) }
+        NavItem("Career", selectedTab == GameTab.CAREER) { onTabSelected(GameTab.CAREER) }
     }
 }
 
 @Composable
-fun NavItem(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+fun NavItem(label: String, selected: Boolean, onClick: () -> Unit) {
     Text(
         text = label,
         color = if (selected) Color(0xFF00FFC6) else Color.Gray,
@@ -189,12 +152,8 @@ fun VenturesScreen(gameEngine: GameEngine) {
                     state = getVentureState(venture),
                     isAutomated = venture.isAutomated,
                     progress = gameEngine.getProductionProgress(venture.id),
-                    onButtonClick = {
-                        gameEngine.purchaseVenture(venture.id)
-                    },
-                    onManualClick = {
-                        gameEngine.startManualProduction(venture.id)
-                    }
+                    onButtonClick = { gameEngine.purchaseVenture(venture.id) },
+                    onManualClick = { gameEngine.startManualProduction(venture.id) }
                 )
             }
         }
@@ -214,9 +173,8 @@ fun TeamScreen(gameEngine: GameEngine) {
                     subtitle = "Automating ${getVentureTitle(gameEngine, hire.ventureId)}",
                     price = gameEngine.formatCurrencyWithSymbol(hire.price),
                     state = getHireState(hire, gameEngine),
-                    onClick = {
-                        gameEngine.purchaseHire(hire.id)
-                    }
+                    requiredVenture = getVentureTitle(gameEngine, hire.ventureId), // Passed correct venture name
+                    onClick = { gameEngine.purchaseHire(hire.id) }
                 )
             }
         }
@@ -237,9 +195,76 @@ fun UpgradesScreen(gameEngine: GameEngine) {
                     multiplier = "x${upgrade.multiplier.toInt()}",
                     price = gameEngine.formatCurrencyWithSymbol(upgrade.price),
                     state = getUpgradeState(upgrade, gameEngine),
-                    onClick = {
-                        gameEngine.purchaseUpgrade(upgrade.id)
+                    onClick = { gameEngine.purchaseUpgrade(upgrade.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CareerScreen(gameEngine: GameEngine) {
+    val xpGain = gameEngine.calculateExperienceGain()
+    val canAscend = gameEngine.canAscend()
+    val xpColor = Color(0xFFBB86FC)
+
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF0E141B))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Prestige Points", color = Color.Gray, fontSize = 14.sp)
+                Text("${gameEngine.experiencePoints.value} XP", color = xpColor, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (canAscend) Color.White else Color.Gray.copy(alpha = 0.2f))
+                        .clickable(enabled = canAscend) { gameEngine.ascend() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (canAscend) "ASCEND CAREER" else "NOT READY",
+                            color = if (canAscend) Color.Black else Color.Gray,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (canAscend) {
+                            Text("Gain +$xpGain XP", color = Color.Black.copy(alpha = 0.6f), fontSize = 12.sp)
+                        } else {
+                            Text("Need $MIN_XP_TO_ASCEND XP to reset", color = Color.Gray, fontSize = 10.sp)
+                        }
                     }
+                }
+            }
+        }
+
+        item {
+            Text("Skill Tree", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+        }
+
+        gameEngine.getAllSkills().forEach { skill ->
+            item {
+                SkillUpgradeCard(
+                    title = skill.title,
+                    description = skill.description,
+                    level = skill.level,
+                    maxLevel = skill.maxLevel,
+                    cost = skill.cost,
+                    canAfford = gameEngine.experiencePoints.value >= skill.cost,
+                    onClick = { gameEngine.purchaseSkill(skill.id) }
                 )
             }
         }
@@ -250,7 +275,6 @@ fun UpgradesScreen(gameEngine: GameEngine) {
 fun StatsRow(gameEngine: GameEngine) {
     val bg = Color(0xFF0E141B)
     val accent = Color(0xFF00FFC6)
-    val muted = Color.Gray.copy(alpha = 0.7f)
 
     Row(
         modifier = Modifier
@@ -262,78 +286,34 @@ fun StatsRow(gameEngine: GameEngine) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-
-        StatItem(
-            value = gameEngine.formatCurrency(gameEngine.getTotalEarnings()),
-            label = "TOTAL",
-            color = accent
-        )
-
+        StatItem(value = gameEngine.formatCurrency(gameEngine.getTotalEarnings()), label = "TOTAL", color = accent)
         VerticalDivider()
-
-        StatItem(
-            value = gameEngine.getTotalVentures().toString(),
-            label = "VENTURES",
-            color = accent
-        )
-
+        StatItem(value = gameEngine.getTotalVentures().toString(), label = "VENTURES", color = accent)
         VerticalDivider()
-
-        StatItem(
-            value = gameEngine.getTotalHires().toString(),
-            label = "DEVS",
-            color = accent
-        )
+        StatItem(value = gameEngine.getTotalHires().toString(), label = "DEVS", color = accent)
     }
 }
 
 @Composable
-fun StatItem(
-    value: String,
-    label: String,
-    color: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = value,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
-
+fun StatItem(value: String, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, color = color, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(2.dp))
-
-        Text(
-            text = label,
-            color = Color.Gray,
-            fontSize = 12.sp
-        )
+        Text(text = label, color = Color.Gray, fontSize = 12.sp)
     }
 }
 
 @Composable
 fun VerticalDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(28.dp)
-            .background(Color.White.copy(alpha = 0.1f))
-    )
+    Box(modifier = Modifier.width(1.dp).height(28.dp).background(Color.White.copy(alpha = 0.1f)))
 }
 
-// Helper functions to determine states
 @Composable
 fun getVentureState(venture: Venture): UpgradeState {
     return when {
         venture.count > 0 -> UpgradeState.OWNED
         else -> UpgradeState.AVAILABLE
     }
-}
-
-@Composable
-fun isVentureAutomated(venture: Venture, gameEngine: GameEngine): Boolean {
-    return venture.isAutomated
 }
 
 @Composable
@@ -358,16 +338,6 @@ fun getUpgradeState(upgrade: Upgrade, gameEngine: GameEngine): UpgradeState {
         hasRequiredVenture(upgrade, gameEngine) -> UpgradeState.AVAILABLE
         else -> UpgradeState.LOCKED
     }
-}
-
-@Composable
-fun canAffordHire(hire: Hire, gameEngine: GameEngine): Boolean {
-    return gameEngine.balance.value >= hire.price
-}
-
-@Composable
-fun canAffordUpgrade(upgrade: Upgrade, gameEngine: GameEngine): Boolean {
-    return gameEngine.balance.value >= upgrade.price
 }
 
 @Composable

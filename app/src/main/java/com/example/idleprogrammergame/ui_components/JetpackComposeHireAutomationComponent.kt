@@ -2,16 +2,7 @@ package com.example.idleprogrammergame.ui_components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -38,6 +29,7 @@ fun HireDevCard(
     subtitle: String,
     price: String,
     state: HireState,
+    requiredVenture: String = "this business", // Added dynamic requirement
     onClick: () -> Unit = {}
 ) {
     val accent = Color(0xFF00FFC6)
@@ -88,7 +80,7 @@ fun HireDevCard(
 
             Spacer(Modifier.width(12.dp))
 
-            // Title and subtitle - allow wrapping
+            // Title and subtitle
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
@@ -99,7 +91,7 @@ fun HireDevCard(
                     text = when (state) {
                         HireState.HIRED -> "⚡ $subtitle"
                         HireState.AVAILABLE -> subtitle
-                        HireState.LOCKED -> "Own at least 1 Open Source first"
+                        HireState.LOCKED -> "Own at least 1 $requiredVenture first"
                     },
                     color = if (state == HireState.LOCKED)
                         Color.Gray.copy(alpha = 0.6f)
@@ -164,7 +156,8 @@ fun HireDevCardPreview() {
             title = "Senior Dev",
             subtitle = "Automates Open Source",
             price = "$10.00K",
-            state = HireState.LOCKED
+            state = HireState.LOCKED,
+            requiredVenture = "Open Source"
         )
     }
 }
