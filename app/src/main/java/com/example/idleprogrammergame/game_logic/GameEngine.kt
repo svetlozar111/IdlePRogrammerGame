@@ -15,6 +15,7 @@ import com.example.idleprogrammergame.game_logic.AdRewardType
 const val INITIAL_BALANCE = 0.0
 const val UPDATE_INTERVAL_MS = 1000L
 const val MIN_XP_TO_ASCEND = 10L // Player needs at least 10 XP to prestige
+val MILESTONES = listOf(10, 25, 50, 100, 250, 500, 999)
 
 // Venture types
 data class Venture(
@@ -184,6 +185,18 @@ class GameEngine {
         return false
     }
 
+    private fun getMilestoneSpeedMultiplier(count: Int): Double {
+        var multiplier = 1.0
+        for (m in MILESTONES) {
+            if (count >= m) {
+                multiplier *= 2.0 // Each milestone doubles the speed
+            } else {
+                break
+            }
+        }
+        return multiplier
+    }
+
     private fun startGameLoop() {
         isRunning = true
         coroutineScope.launch {
@@ -196,11 +209,14 @@ class GameEngine {
                 ventures.forEach { venture ->
                     if (venture.count > 0) {
                         val currentTime = timeSinceLastProduction[venture.id] ?: 0.0
-                        val speedBoost = if (!venture.isAutomated) {
+                        val manualSpeedBoost = if (!venture.isAutomated) {
                             1.0 + (getSkillLevel("deep_focus") * getSkillEffect("deep_focus"))
                         } else 1.0
                         
-                        val adjustedDelta = deltaTime * speedBoost
+                        val milestoneBoost = getMilestoneSpeedMultiplier(venture.count)
+                        val totalSpeedBoost = manualSpeedBoost * milestoneBoost
+                        
+                        val adjustedDelta = deltaTime * totalSpeedBoost
                         
                         if (venture.isAutomated) {
                             val newTime = currentTime + adjustedDelta
@@ -259,7 +275,8 @@ class GameEngine {
         ventures.forEach { venture ->
             if (venture.count > 0) {
                 val perCycle = calculateVentureIncome(venture)
-                val perSecond = perCycle / venture.productionTime
+                val milestoneBoost = getMilestoneSpeedMultiplier(venture.count)
+                val perSecond = (perCycle * milestoneBoost) / venture.productionTime
                 total += perSecond
             }
         }
@@ -298,6 +315,8 @@ class GameEngine {
         val index = ventures.indexOfFirst { it.id == ventureId }
         if (index == -1) return false
         val venture = ventures[index]
+        if (venture.count >= 999) return false
+
         val price = calculateVenturePrice(venture)
         if (balance.value >= price) {
             balance.value -= price

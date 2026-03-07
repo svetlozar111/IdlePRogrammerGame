@@ -9,6 +9,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -16,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +62,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
     var selectedTab by remember { mutableStateOf(GameTab.VENTURES) }
+    var showProfileModal by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color(0xFF050A10),
@@ -79,9 +86,10 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
                     incomePerSecond = "+${gameEngine.formatCurrencyWithSymbol(gameEngine.incomePerSecond.value)} / s"
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
 
-                StatsRow(gameEngine)
+                // NEW FUNNY HEADER BUTTONS
+                FunnyHeaderButtons(gameEngine) { showProfileModal = true }
 
                 Spacer(Modifier.height(12.dp))
 
@@ -103,7 +111,149 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
                     .align(Alignment.TopEnd)
                     .padding(top = padding.calculateTopPadding() + 8.dp, end = 16.dp)
             )
+            
+            if (showProfileModal) {
+                ProfileOverlay(gameEngine) { showProfileModal = false }
+            }
         }
+    }
+}
+
+@Composable
+fun FunnyHeaderButtons(gameEngine: GameEngine, onProfileClick: () -> Unit) {
+    val bg = Color(0xFF0E141B)
+    val accent = Color(0xFF00FFC6)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // LEFT BUTTON: PROFILE
+        HeaderButton(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp, topEnd = 16.dp, bottomEnd = 16.dp)),
+            icon = Icons.Default.Person,
+            label = "PROFILE",
+            onClick = onProfileClick
+        )
+
+        // MIDDLE BUTTON: MODES
+        HeaderButton(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp)),
+            icon = Icons.Default.PlayArrow,
+            label = "MODES",
+            onClick = { /* Reserved */ }
+        )
+
+        // RIGHT BUTTON: LEADERBOARD
+        HeaderButton(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp, topEnd = 32.dp, bottomEnd = 32.dp)),
+            icon = Icons.Default.Star,
+            label = "RANKS",
+            onClick = { /* Mocked data */ }
+        )
+    }
+}
+
+@Composable
+fun HeaderButton(modifier: Modifier, icon: ImageVector, label: String, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFF0E141B))
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = null, tint = Color(0xFF00FFC6), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(label, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun ProfileOverlay(gameEngine: GameEngine, onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.8f))
+            .clickable { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF0E141B))
+                .clickable(enabled = false) {}
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("DEVELOPER PROFILE", color = Color(0xFF00FFC6), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(16.dp))
+            
+            ProfileStatRow("Lifetime Earnings", gameEngine.formatCurrencyWithSymbol(gameEngine.getTotalEarnings()))
+            ProfileStatRow("Total Ventures", gameEngine.getTotalVentures().toString())
+            ProfileStatRow("Team Size", gameEngine.getTotalHires().toString())
+            
+            Spacer(Modifier.height(24.dp))
+            Text("SHOWCASED ACHIEVEMENTS", color = Color.Gray, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AchievementBadge("💻", "Bug Crusher")
+                AchievementBadge("🚀", "Scale King")
+                AchievementBadge("💰", "Billionaire")
+            }
+            
+            Spacer(Modifier.height(24.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF00FFC6))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("CLOSE", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileStatRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.Gray)
+        Text(value, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun AchievementBadge(emoji: String, title: String) {
+    Column(
+        modifier = Modifier
+            .size(80.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(emoji, fontSize = 24.sp)
+        Text(title, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -173,7 +323,7 @@ fun TeamScreen(gameEngine: GameEngine) {
                     subtitle = "Automating ${getVentureTitle(gameEngine, hire.ventureId)}",
                     price = gameEngine.formatCurrencyWithSymbol(hire.price),
                     state = getHireState(hire, gameEngine),
-                    requiredVenture = getVentureTitle(gameEngine, hire.ventureId), // Passed correct venture name
+                    requiredVenture = getVentureTitle(gameEngine, hire.ventureId),
                     onClick = { gameEngine.purchaseHire(hire.id) }
                 )
             }
@@ -269,43 +419,6 @@ fun CareerScreen(gameEngine: GameEngine) {
             }
         }
     }
-}
-
-@Composable
-fun StatsRow(gameEngine: GameEngine) {
-    val bg = Color(0xFF0E141B)
-    val accent = Color(0xFF00FFC6)
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bg)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        StatItem(value = gameEngine.formatCurrency(gameEngine.getTotalEarnings()), label = "TOTAL", color = accent)
-        VerticalDivider()
-        StatItem(value = gameEngine.getTotalVentures().toString(), label = "VENTURES", color = accent)
-        VerticalDivider()
-        StatItem(value = gameEngine.getTotalHires().toString(), label = "DEVS", color = accent)
-    }
-}
-
-@Composable
-fun StatItem(value: String, label: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, color = color, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(2.dp))
-        Text(text = label, color = Color.Gray, fontSize = 12.sp)
-    }
-}
-
-@Composable
-fun VerticalDivider() {
-    Box(modifier = Modifier.width(1.dp).height(28.dp).background(Color.White.copy(alpha = 0.1f)))
 }
 
 @Composable
