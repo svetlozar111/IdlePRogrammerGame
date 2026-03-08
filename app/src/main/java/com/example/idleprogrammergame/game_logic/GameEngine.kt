@@ -10,6 +10,7 @@ import kotlin.math.floor
 import kotlin.math.pow
 import kotlin.math.sqrt
 import com.example.idleprogrammergame.game_logic.AdRewardType
+import kotlinx.serialization.Serializable
 
 // Game constants
 const val INITIAL_BALANCE = 0.0
@@ -56,6 +57,28 @@ data class SkillUpgrade(
     val level: Int = 0,
     val maxLevel: Int = 10,
     val effectMultiplier: Double = 0.1
+)
+
+@Serializable
+data class VentureSaveData(val id: String, val count: Int, val isAutomated: Boolean)
+@Serializable
+data class HireSaveData(val id: String, val isHired: Boolean)
+@Serializable
+data class UpgradeSaveData(val id: String, val isPurchased: Boolean)
+@Serializable
+data class SkillSaveData(val id: String, val level: Int, val cost: Long)
+
+@Serializable
+data class PlayerData(
+    val username: String,
+    val balance: Double,
+    val lifetimeEarnings: Double,
+    val experiencePoints: Long,
+    val ventures: List<VentureSaveData>,
+    val hires: List<HireSaveData>,
+    val upgrades: List<UpgradeSaveData>,
+    val skills: List<SkillSaveData>,
+    val lastSaveTime: Long = System.currentTimeMillis()
 )
 
 class GameEngine {
@@ -148,6 +171,55 @@ class GameEngine {
         ))
 
         ventures.forEach { timeSinceLastProduction[it.id] = 0.0 }
+    }
+
+    fun toPlayerData(username: String): PlayerData {
+        return PlayerData(
+            username = username,
+            balance = balance.value,
+            lifetimeEarnings = lifetimeEarnings.value,
+            experiencePoints = experiencePoints.value,
+            ventures = ventures.map { VentureSaveData(it.id, it.count, it.isAutomated) },
+            hires = hires.map { HireSaveData(it.id, it.isHired) },
+            upgrades = upgrades.map { UpgradeSaveData(it.id, it.isPurchased) },
+            skills = skillUpgrades.map { SkillSaveData(it.id, it.level, it.cost) }
+        )
+    }
+
+    fun loadFromPlayerData(data: PlayerData) {
+        balance.value = data.balance
+        lifetimeEarnings.value = data.lifetimeEarnings
+        experiencePoints.value = data.experiencePoints
+        
+        data.ventures.forEach { save ->
+            val index = ventures.indexOfFirst { it.id == save.id }
+            if (index != -1) {
+                ventures[index] = ventures[index].copy(count = save.count, isAutomated = save.isAutomated)
+            }
+        }
+        
+        data.hires.forEach { save ->
+            val index = hires.indexOfFirst { it.id == save.id }
+            if (index != -1) {
+                hires[index] = hires[index].copy(isHired = save.isHired)
+            }
+        }
+        
+        data.upgrades.forEach { save ->
+            val index = upgrades.indexOfFirst { it.id == save.id }
+            if (index != -1) {
+                upgrades[index] = upgrades[index].copy(isPurchased = save.isPurchased)
+            }
+        }
+        
+        data.skills.forEach { save ->
+            val index = skillUpgrades.indexOfFirst { it.id == save.id }
+            if (index != -1) {
+                skillUpgrades[index] = skillUpgrades[index].copy(level = save.level, cost = save.cost)
+            }
+        }
+        
+        updateIncomePerSecond()
     }
 
     fun calculateExperienceGain(): Long {

@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Idle Programmer game"
 include(":app")
- 
+include(":server")

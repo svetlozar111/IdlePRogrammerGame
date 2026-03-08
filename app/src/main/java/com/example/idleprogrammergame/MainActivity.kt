@@ -1,26 +1,36 @@
 package com.example.idleprogrammergame
 
+import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.idleprogrammergame.game_logic.AdEngine
 import com.example.idleprogrammergame.game_logic.GameEngine
+import com.example.idleprogrammergame.game_logic.NetworkManager
 import com.example.idleprogrammergame.ui.theme.IdleProgrammerGameTheme
 import com.example.idleprogrammergame.ui_components.*
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val gameEngine = GameEngine()
     private lateinit var adEngine: AdEngine
+    private val networkManager = NetworkManager()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,12 +38,11 @@ class MainActivity : ComponentActivity() {
         adEngine.initialize(this)
         adEngine.setActivity(this)
         
-        // Ensure edge-to-edge is enabled for true transparency
         enableEdgeToEdge()
         
         setContent {
             IdleProgrammerGameTheme {
-                GameScreen(gameEngine, adEngine)
+                MainContent(gameEngine, adEngine, networkManager)
             }
         }
     }
@@ -45,20 +54,133 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
+fun MainContent(gameEngine: GameEngine, adEngine: AdEngine, networkManager: NetworkManager) {
+    var username by remember { mutableStateOf("") }
+    var showLogin by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Load saved username if exists
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+        val savedUser = prefs.getString("username", "") ?: ""
+        if (savedUser.isNotEmpty()) {
+            username = savedUser
+            showLogin = false
+            // Auto-load data
+            val loadedData = networkManager.loadGame(savedUser)
+            if (loadedData != null) {
+                gameEngine.loadFromPlayerData(loadedData)
+            }
+        }
+    }
+
+    if (showLogin) {
+        LoginScreen(
+            onLogin = { enteredName ->
+                username = enteredName
+                context.getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+                    .edit().putString("username", enteredName).apply()
+                
+                scope.launch {
+                    val loadedData = networkManager.loadGame(enteredName)
+                    if (loadedData != null) {
+                        gameEngine.loadFromPlayerData(loadedData)
+                        Toast.makeText(context, "Welcome back, $enteredName!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "New career started for $enteredName", Toast.LENGTH_SHORT).show()
+                    }
+                    showLogin = false
+                }
+            }
+        )
+    } else {
+        GameScreen(gameEngine, adEngine, networkManager, username)
+    }
+}
+
+@Composable
+fun LoginScreen(onLogin: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF050A10)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Text(
+                "IDLE PROGRAMMER",
+                color = Color(0xFF00FFC6),
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Enter your dev name to start",
+                color = Color.Gray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
+            )
+            
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("Dev Username") },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF00FFC6),
+                    unfocusedBorderColor = Color.Gray
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Button(
+                onClick = { if (text.isNotBlank()) onLogin(text) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFC6)),
+                modifier = Modifier
+                    .padding(top = 24.dp)
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("RUN APPLICATION", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun GameScreen(
+    gameEngine: GameEngine, 
+    adEngine: AdEngine, 
+    networkManager: NetworkManager,
+    username: String
+) {
     val hazeState = remember { HazeState() }
     var selectedTab by remember { mutableStateOf(GameTab.VENTURES) }
     var showProfileModal by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
-    // Using a root Box instead of Scaffold to ensure content spans the entire screen
-    // without any hidden system bar paddings interfering.
+    // Auto-save every 30 seconds
+    LaunchedEffect(Unit) {
+        while(true) {
+            kotlinx.coroutines.delay(30000)
+            networkManager.saveGame(gameEngine.toPlayerData(username))
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF050A10))
     ) {
-        // Main content area with Haze source
-        // This Box will draw behind both the status bar and navigation bar
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -67,7 +189,7 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding() // Only pad the top for the status bar
+                    .statusBarsPadding()
             ) {
                 JetpackComposeMoneyComponent(
                     balance = gameEngine.formatCurrencyWithSymbol(gameEngine.balance.value),
@@ -78,7 +200,17 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
 
                 FunnyHeaderButtons(
                     onProfileClick = { showProfileModal = true },
-                    onModesClick = { /* Handle Modes */ },
+                    onModesClick = { 
+                        // Manual Save Button Logic
+                        scope.launch {
+                            val success = networkManager.saveGame(gameEngine.toPlayerData(username))
+                            if (success) {
+                                Toast.makeText(context, "Game Uploaded to Cloud", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Cloud Sync Failed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
                     onRanksClick = { /* Handle Ranks */ }
                 )
 
@@ -98,9 +230,6 @@ fun GameScreen(gameEngine: GameEngine, adEngine: AdEngine) {
             }
         }
 
-        // Floating Bottom Navigation Bar
-        // We use navigationBarsPadding here so the "pill" stays above the gesture/button area,
-        // but the area underneath it will show the game content (blurred).
         BottomNavBar(
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
