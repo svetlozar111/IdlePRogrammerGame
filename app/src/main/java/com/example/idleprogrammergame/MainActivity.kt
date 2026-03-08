@@ -25,12 +25,15 @@ import com.example.idleprogrammergame.ui.theme.IdleProgrammerGameTheme
 import com.example.idleprogrammergame.ui_components.*
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val gameEngine = GameEngine()
     private lateinit var adEngine: AdEngine
     private val networkManager = NetworkManager()
+    private var currentUsername: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,9 +43,27 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         
+        // Retrieve username from preferences if available
+        val prefs = getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+        currentUsername = prefs.getString("username", "") ?: ""
+        
         setContent {
             IdleProgrammerGameTheme {
-                MainContent(gameEngine, adEngine, networkManager)
+                MainContent(gameEngine, adEngine, networkManager) { updatedUsername ->
+                    currentUsername = updatedUsername
+                }
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Save game state when app goes to background or is about to be destroyed
+        if (currentUsername.isNotEmpty()) {
+            val data = gameEngine.toPlayerData(currentUsername)
+            // Use a background scope to ensure saving happens even if activity is finishing
+            CoroutineScope(Dispatchers.IO).launch {
+                networkManager.saveGame(data)
             }
         }
     }
@@ -54,7 +75,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainContent(gameEngine: GameEngine, adEngine: AdEngine, networkManager: NetworkManager) {
+fun MainContent(
+    gameEngine: GameEngine, 
+    adEngine: AdEngine, 
+    networkManager: NetworkManager,
+    onUsernameUpdate: (String) -> Unit
+) {
     var username by remember { mutableStateOf("") }
     var showLogin by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
@@ -66,6 +92,7 @@ fun MainContent(gameEngine: GameEngine, adEngine: AdEngine, networkManager: Netw
         val savedUser = prefs.getString("username", "") ?: ""
         if (savedUser.isNotEmpty()) {
             username = savedUser
+            onUsernameUpdate(savedUser)
             showLogin = false
             // Auto-load data
             val loadedData = networkManager.loadGame(savedUser)
@@ -79,16 +106,21 @@ fun MainContent(gameEngine: GameEngine, adEngine: AdEngine, networkManager: Netw
         LoginScreen(
             onLogin = { enteredName ->
                 username = enteredName
+                onUsernameUpdate(enteredName)
                 context.getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
                     .edit().putString("username", enteredName).apply()
                 
                 scope.launch {
                     val loadedData = networkManager.loadGame(enteredName)
+
                     if (loadedData != null) {
                         gameEngine.loadFromPlayerData(loadedData)
                         Toast.makeText(context, "Welcome back, $enteredName!", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "New career started for $enteredName", Toast.LENGTH_SHORT).show()
+
+                        // Create player on server immediately
+                        networkManager.saveGame(gameEngine.toPlayerData(enteredName))
                     }
                     showLogin = false
                 }
