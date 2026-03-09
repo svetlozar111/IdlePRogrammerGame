@@ -48,6 +48,11 @@ dependencies {
     implementation(libs.google.ads.mobile)
     implementation(libs.haze)
     
+    // Credentials and Google Sign-In
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 

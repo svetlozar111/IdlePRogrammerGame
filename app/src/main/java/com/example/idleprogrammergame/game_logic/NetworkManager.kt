@@ -8,7 +8,18 @@ import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+@Serializable
+data class LeaderboardEntry(val username: String, val score: Double)
+
+@Serializable
+data class LeaderboardResponse(
+    val topEarnings: List<LeaderboardEntry>,
+    val topRebirths: List<LeaderboardEntry>,
+    val topVentures: List<LeaderboardEntry>
+)
 
 class NetworkManager {
     private val client = HttpClient(OkHttp) {
@@ -23,49 +34,46 @@ class NetworkManager {
         }
     }
 
-    // Change this to your server's IP/domain
     private val baseUrl = "http://eu.difuser.online:8080"
 
     suspend fun saveGame(data: PlayerData): Boolean {
-        println("📤 Sending save to server for ${data.username}")
-
         return try {
             val response = client.post("$baseUrl/save") {
                 contentType(ContentType.Application.Json)
                 setBody(data)
             }
-
-            println("📡 Save response: ${response.status}")
-
             response.status == HttpStatusCode.OK
         } catch (e: Exception) {
-            println("❌ Save failed")
             e.printStackTrace()
             false
         }
     }
 
     suspend fun loadGame(username: String): PlayerData? {
-        println("📤 Requesting load for $username")
-
         return try {
             val response = client.get("$baseUrl/load") {
                 parameter("username", username)
             }
-
-            println("📡 Load response: ${response.status}")
-
             if (response.status == HttpStatusCode.OK) {
-                val data = response.body<PlayerData>()
-                println("✅ Loaded player ${data.username}")
-                data
+                response.body<PlayerData>()
             } else {
-                println("⚠️ Player not found")
                 null
             }
-
         } catch (e: Exception) {
-            println("❌ Load failed")
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun getLeaderboard(): LeaderboardResponse? {
+        return try {
+            val response = client.get("$baseUrl/leaderboard")
+            if (response.status == HttpStatusCode.OK) {
+                response.body<LeaderboardResponse>()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
             e.printStackTrace()
             null
         }

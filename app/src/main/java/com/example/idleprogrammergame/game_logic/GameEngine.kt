@@ -74,6 +74,7 @@ data class PlayerData(
     val balance: Double,
     val lifetimeEarnings: Double,
     val experiencePoints: Long,
+    val rebirths: Int = 0,
     val ventures: List<VentureSaveData>,
     val hires: List<HireSaveData>,
     val upgrades: List<UpgradeSaveData>,
@@ -91,6 +92,7 @@ class GameEngine {
     // Prestige State
     var experiencePoints = mutableStateOf(0L)
     var lifetimeEarnings = mutableStateOf(0.0)
+    var rebirths = mutableStateOf(0)
     
     private val timeSinceLastProduction =
         androidx.compose.runtime.mutableStateMapOf<String, Double>()
@@ -179,6 +181,7 @@ class GameEngine {
             balance = balance.value,
             lifetimeEarnings = lifetimeEarnings.value,
             experiencePoints = experiencePoints.value,
+            rebirths = rebirths.value,
             ventures = ventures.map { VentureSaveData(it.id, it.count, it.isAutomated) },
             hires = hires.map { HireSaveData(it.id, it.isHired) },
             upgrades = upgrades.map { UpgradeSaveData(it.id, it.isPurchased) },
@@ -190,6 +193,7 @@ class GameEngine {
         balance.value = data.balance
         lifetimeEarnings.value = data.lifetimeEarnings
         experiencePoints.value = data.experiencePoints
+        rebirths.value = data.rebirths
         
         data.ventures.forEach { save ->
             val index = ventures.indexOfFirst { it.id == save.id }
@@ -234,6 +238,7 @@ class GameEngine {
         
         val gain = calculateExperienceGain()
         experiencePoints.value += gain
+        rebirths.value += 1
         
         // Reset everything except XP and Skill Tree
         resetGameData()
